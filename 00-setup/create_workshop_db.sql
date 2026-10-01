@@ -1,0 +1,72 @@
+----------------------------------------------------------------------
+-- Workshop Setup: Create database, stage, and load DEALERS
+----------------------------------------------------------------------
+
+USE ROLE SYSADMIN;
+
+-- 1. Dedicated workshop database (DROP it afterwards to clean up)
+CREATE DATABASE IF NOT EXISTS WORKSHOP_DB;
+USE DATABASE WORKSHOP_DB;
+USE SCHEMA PUBLIC;
+
+-- 2. Warehouse
+CREATE WAREHOUSE IF NOT EXISTS WORKSHOP_WH
+    WAREHOUSE_SIZE = 'XSMALL'
+    AUTO_SUSPEND = 60
+    AUTO_RESUME = TRUE;
+
+USE WAREHOUSE WORKSHOP_WH;
+
+-- 3. Stage for file uploads
+CREATE STAGE IF NOT EXISTS WORKSHOP_STAGE
+    FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1);
+
+-- Upload from CLI:
+--   snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE
+
+-- 4. DEALERS table — same schema as target production
+CREATE OR REPLACE TABLE DEALERS (
+    AGENCY_ID   VARCHAR,
+    SITE        VARCHAR,
+    AGENCY_NAME VARCHAR,
+    ADDRESS     VARCHAR,
+    CITY        VARCHAR,
+    ZIP_CODE    VARCHAR,
+    SIRET       VARCHAR,
+    MINISITE_URL VARCHAR,
+    PRIMARY KEY (AGENCY_ID, SITE)
+);
+
+COPY INTO DEALERS (AGENCY_ID, SITE, AGENCY_NAME, ADDRESS, CITY, ZIP_CODE, SIRET, MINISITE_URL)
+FROM (
+    SELECT $2, $1, $3, $4, $5, $6, $7, $8
+    FROM @WORKSHOP_STAGE/dealers_sample.csv
+);
+
+-- 5. DEALER_GOOGLE_MAP — Google Maps enrichment cache (empty, populated in step 2)
+CREATE OR REPLACE TABLE DEALER_GOOGLE_MAP (
+    GOOGLE_PLACE_ID VARCHAR PRIMARY KEY,
+    AI_AGENCY_NAME  VARCHAR,
+    GOOGLE_JSON     VARIANT,
+    CREATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- 6. DEALER_ADDRESS_STANDARD — Gemini standardization output (empty, populated in step 3)
+CREATE OR REPLACE TABLE DEALER_ADDRESS_STANDARD (
+    AGENCY_ID           VARCHAR,
+    SITE                VARCHAR,
+    GOOGLE_PLACE_ID     VARCHAR,
+    JORECA_ID           VARCHAR,
+    IS_REUSED           BOOLEAN DEFAULT FALSE,
+    AI_JSON             VARIANT,
+    AI_STANDARD_ADDRESS VARCHAR,
+    CREATED_AT          TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (AGENCY_ID, SITE)
+);
+
+-- 7. Verify
+SELECT 'DEALERS' AS TABLE_NAME, COUNT(*) AS ROW_COUNT FROM DEALERS
+UNION ALL
+SELECT 'DEALER_GOOGLE_MAP', COUNT(*) FROM DEALER_GOOGLE_MAP
+UNION ALL
+SELECT 'DEALER_ADDRESS_STANDARD', COUNT(*) FROM DEALER_ADDRESS_STANDARD;
