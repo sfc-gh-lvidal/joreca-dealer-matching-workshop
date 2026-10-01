@@ -11,6 +11,9 @@ Run the same address standardization task through Snowflake's built-in Cortex AI
 - Billed via Snowflake credits (no separate Google contract)
 - One SQL function call: `SNOWFLAKE.CORTEX.AI_COMPLETE()`
 
+## Same prompt, no web search
+Cortex AI models do not browse the web: they can standardize what is in the input (name, address), but cannot find a SIRET or phone that is not given. Compare on the fields both can produce (standard address, cleaned name), and keep Gemini + Google Search for the research part, or feed Cortex with the Google Maps data from step 2.
+
 ## How to run
 
 ```sql
@@ -43,4 +46,4 @@ LIMIT 10;
 | Data residency | Leaves Snowflake to Google | Stays in Snowflake |
 | Latency | Network round-trip | Internal |
 
-See `optional-04-cortex-ai-comparison/cost_comparison.md` from the v1 repo for detailed calculations.
+Use the `token_usage` result of Block 3 (real tokens per dealer) and the current Cortex AI credit table to compute the monthly cost at your volume.

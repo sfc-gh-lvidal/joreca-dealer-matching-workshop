@@ -40,9 +40,8 @@ DEALERS (input crawl, ~200 rows)
     ├───► Step 2: Google Maps API (Find Place + Place Details)
     │         └──► DEALER_GOOGLE_MAP (cache: GOOGLE_PLACE_ID → normalized name, address, JSON)
     │
-    └───► Step 3: Gemini API (address standardization, agency verification)
-              │   uses DEALER_GOOGLE_MAP data as context
-              └──► DEALER_ADDRESS_STANDARD (per-period: standardized address, resolved GOOGLE_PLACE_ID)
+    └───► Step 3: Gemini API + Google Search (Joreca production prompt, prompts/gemini_search_agency.txt)
+              └──► DEALER_ADDRESS_STANDARD (per-period: AI_JSON, standardized address, resolved GOOGLE_PLACE_ID)
                        │
                        └───► Step 4: Resolve — choose final GOOGLE_PLACE_ID
 ```
@@ -61,6 +60,8 @@ Source-site dealers for the current period. One row per dealer per marketplace s
 | `ZIP_CODE` | VARCHAR | Postal code | `18230` |
 | `SIRET` | VARCHAR | SIRET number (often empty) | `45017786000027` |
 | `MINISITE_URL` | VARCHAR | Dealer's minisite URL | `https://...` |
+| `GOOGLE_PLACE_ID` | VARCHAR | Filled in step 2 (Locate) | `ChIJ...` |
+| `JORECA_ID` | VARCHAR | Filled in step 6 (Match, optional module) | `223235` |
 
 ### Table: DEALER_GOOGLE_MAP (cache — step 2)
 
@@ -83,7 +84,7 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 | `GOOGLE_PLACE_ID` | VARCHAR | Resolved Place ID |
 | `JORECA_ID` | VARCHAR | Matched concession ID (set in step 6) |
 | `IS_REUSED` | BOOLEAN | Whether result was reused from previous period |
-| `AI_JSON` | VARIANT | Full Gemini response |
+| `AI_JSON` | VARIANT | Full Gemini response (format defined by the prompt) + token usage in `_usage` |
 | `AI_STANDARD_ADDRESS` | VARCHAR | Gemini-standardized address |
 
 ---
@@ -94,8 +95,8 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 |------|-------|----------|---------------|
 | 15:00 | **Setup + Briefing** | 20 min | Snow CLI connection. Create `WORKSHOP_DB`. Present the pipeline. Load `DEALERS` from stage. |
 | 15:20 | **Step 1: Collect** | 15 min | Explore `DEALERS`: data quality, missing SIRETs, inconsistent names. Write exploration queries. |
-| 15:35 | **Step 2: Locate (Google Maps)** | 35 min | Configure EAI for Google Maps. Write UDF `find_google_place()`. Populate `DEALER_GOOGLE_MAP`. |
-| 16:10 | **Step 3: Enrich (Gemini)** | 35 min | Configure EAI for Gemini. Write UDF `standardize_address()`. Populate `DEALER_ADDRESS_STANDARD`. |
+| 15:35 | **Step 2: Locate (Google Maps)** | 35 min | Configure EAI for Google Maps. Write UDF `FIND_GOOGLE_PLACE()`. Populate `DEALERS.GOOGLE_PLACE_ID` and `DEALER_GOOGLE_MAP`. |
+| 16:10 | **Step 3: Enrich (Gemini)** | 35 min | Configure EAI for Gemini. Write UDF `SEARCH_AGENCY()` using your production prompt. Populate `DEALER_ADDRESS_STANDARD`. Measure tokens per call. |
 | 16:45 | **Step 4: Resolve + Wrap-up** | 15–25 min | Resolve final GOOGLE_PLACE_ID. Compare with prod results. Discuss next steps. |
 
 **If time permits:** run Cortex AI on the same data to compare with Gemini.
@@ -113,8 +114,8 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 **Prepare:**
 - Snowflake user with access to the Joreca account
 - Test connection: `snow connection test`
-- Google Maps API key accessible
-- Gemini API key accessible
+- Google Maps API key, with the **Places API** enabled on the Google Cloud project
+- Gemini API key (model `gemini-2.5-flash`, Google Search grounding)
 
 **Optional reading:**
 - [Snowpark Python Developer Guide](https://docs.snowflake.com/en/developer-guide/snowpark/python/index)
@@ -129,7 +130,9 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 workshop/
 ├── README.md                          ← You are here
 ├── data/
-│   └── dealers_sample.csv             # ~200 real crawled dealers
+│   └── dealers_sample.csv             # 200 real crawled dealers (from the POC comparison file)
+├── prompts/
+│   └── gemini_search_agency.txt       # Joreca production Gemini prompt (loaded by the UDF from the stage)
 ├── 00-setup/                          # Create WORKSHOP_DB, load data
 ├── 01-collect/                        # Explore DEALERS
 ├── 02-locate-google-maps/             # Google Maps EAI + UDF → DEALER_GOOGLE_MAP
@@ -140,8 +143,41 @@ workshop/
 ├── optional-07-data-quality/          # DMFs on enriched data
 ├── optional-08-change-tracking/       # AGENCY_CHANGE_LOG
 ├── optional-09-scheduling/            # Snowflake Tasks for monthly runs
-├── workshop_notebook.ipynb
+├── workshop_notebook.ipynb            # Same steps as the SQL files, to run in a Snowflake Workspace
 ├── prerequisites_email.md
 └── methodology/
     └── workshop-template.md
 ```
+
+---
+
+## Two ways to run the workshop
+
+**Snowflake Notebook** — import `workshop_notebook.ipynb` in a Snowflake Workspace and run the cells in order.
+
+**Snow CLI** — run the SQL files from your terminal, in order:
+
+```bash
+snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE      # after 00-setup created the stage
+snow stage copy prompts/gemini_search_agency.txt @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE/prompts
+snow sql -f 00-setup/create_workshop_db.sql
+snow sql -f 01-collect/explore_dealers.sql
+snow sql -f 02-locate-google-maps/setup_eai_google.sql      # paste your key first, ACCOUNTADMIN
+snow sql -f 02-locate-google-maps/google_maps_udf.sql
+snow sql -f 03-enrich-gemini/setup_eai_gemini.sql           # paste your key first, ACCOUNTADMIN
+snow sql -f 03-enrich-gemini/search_agency_udf.sql
+snow sql -f 04-resolve/resolve_and_compare.sql
+```
+
+Both paths run the exact same code. The number of dealers sent to the APIs is `SAMPLE_SIZE` in the notebook, `LIMIT 10` in the SQL files.
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| `FIND_GOOGLE_PLACE` returns `status: ERROR`, `REQUEST_DENIED` | Wrong key, or Places API not enabled on the Google Cloud project |
+| `SEARCH_AGENCY` returns `HTTP 400: API key not valid` | Wrong Gemini key in the secret: re-run `setup_eai_gemini.sql` |
+| `Database 'WORKSHOP_DB' does not exist` | Wrong connection / account: check `snow connection list` |
+| `COPY INTO` loads 0 rows | The CSV was not uploaded: run the `snow stage copy` command, then `LIST @WORKSHOP_STAGE` |
+| `IMPORTS` error on `SEARCH_AGENCY` | The prompt file is not on the stage at `@WORKSHOP_STAGE/prompts/` |
+| A key appears in results | It should not: keys are read from SECRETs and sent in headers / never returned in errors |

@@ -11,7 +11,11 @@ Each dealer may have:
 - A standardized address from Gemini (step 3)
 - A confirmation from Gemini on whether the Google Maps result matches
 
-The resolve step picks the best GOOGLE_PLACE_ID and writes it into `DEALER_ADDRESS_STANDARD`. In production, there's a second Gemini pass here for ambiguous cases — we skip that in the workshop but the pattern is the same.
+The resolve step writes the final GOOGLE_PLACE_ID into `DEALER_ADDRESS_STANDARD`. Workshop rule: keep the Place ID found in step 2 only if Gemini's `match_confidence_score` is >= 0.7 **and** the postal code found by Gemini appears in the Google Maps address. In production there is a second Gemini pass for ambiguous cases.
+
+`DEALERS_ENRICHED` (view) puts side by side: raw crawl, Gemini result (name, standard address, SIRET), Google Maps result (address, GPS), confidence.
+
+The end of `resolve_and_compare.sql` contains the cleanup commands (commented out).
 
 ## Next steps (post-workshop)
 

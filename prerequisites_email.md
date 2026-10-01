@@ -36,7 +36,9 @@ To make the most of our time together, here are a few things to prepare beforeha
   snow connection test
   ```
 
-- **API keys:** please have your **Google Maps API key** and **Gemini API key** accessible. We'll use them to call these APIs directly from Snowflake during the workshop.
+- **API keys:** please have your **Google Maps API key** (with the Places API enabled on the Google Cloud project) and your **Gemini API key**. We'll use them to call these APIs directly from Snowflake, with the same search prompt you use today.
+
+- **Permissions:** creating the API integrations requires the ACCOUNTADMIN role (or the CREATE INTEGRATION privilege). If none of the participants has it, please tell us beforehand.
 
 ## What we'll build
 
@@ -44,7 +46,7 @@ We'll work on a sample of your real crawled dealer data (~200 records) and build
 
 1. **Load and explore** the DEALERS data (step 1 of your pipeline)
 2. **Call Google Maps** from Snowflake to find and enrich dealer locations (step 2)
-3. **Call Gemini** from Snowflake to standardize addresses (step 3)
+3. **Call Gemini** from Snowflake with your production search prompt (step 3), and measure the tokens per dealer
 4. **Resolve** the final enriched output (step 4)
 
 By the end, you'll have your pipeline steps 1–4 running in Snowflake with no external server needed.

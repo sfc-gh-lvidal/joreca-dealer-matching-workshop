@@ -1,89 +1,53 @@
-----------------------------------------------------------------------
--- Resolve: combine Google Maps + Gemini results, compare with prod
-----------------------------------------------------------------------
+-- ----------------------------------------------------------------------
+-- Block 4 - Resolve: final Google Place ID + enriched view + cleanup
+-- Same code as the matching cells of workshop_notebook.ipynb
+-- ----------------------------------------------------------------------
+USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
-USE DATABASE WORKSHOP_DB;
-USE SCHEMA PUBLIC;
-
--- 1. Join DEALERS + DEALER_ADDRESS_STANDARD + DEALER_GOOGLE_MAP
---    to get the full enriched view
-CREATE OR REPLACE VIEW DEALERS_ENRICHED AS
-SELECT
-    d.AGENCY_ID,
-    d.SITE,
-    d.AGENCY_NAME AS RAW_AGENCY_NAME,
-    d.ADDRESS AS RAW_ADDRESS,
-    d.CITY AS RAW_CITY,
-    d.ZIP_CODE AS RAW_ZIP_CODE,
-    d.SIRET,
-    -- Gemini output
-    das.AI_STANDARD_ADDRESS,
-    das.AI_JSON:"clean_agency_name"::VARCHAR AS CLEAN_AGENCY_NAME,
-    das.AI_JSON:"standard_city"::VARCHAR AS STANDARD_CITY,
-    das.AI_JSON:"standard_zip_code"::VARCHAR AS STANDARD_ZIP_CODE,
-    das.AI_JSON:"confidence"::FLOAT AS AI_CONFIDENCE,
-    das.GOOGLE_PLACE_ID AS RESOLVED_PLACE_ID,
-    -- Google Maps output (if we have it)
-    gm.AI_AGENCY_NAME AS GOOGLE_AGENCY_NAME,
-    gm.GOOGLE_JSON:"formatted_address"::VARCHAR AS GOOGLE_ADDRESS,
-    gm.GOOGLE_JSON:"latitude"::FLOAT AS LATITUDE,
-    gm.GOOGLE_JSON:"longitude"::FLOAT AS LONGITUDE,
-    gm.GOOGLE_JSON:"phone"::VARCHAR AS PHONE,
-    gm.GOOGLE_JSON:"website"::VARCHAR AS WEBSITE
+-- Step 4 (Resolve): decide which Google Place ID is the right one for each dealer.
+-- Simplified rule for the workshop: keep it only if Gemini is confident (>= 0.7)
+-- AND the postal code found by Gemini appears in the Google Maps address.
+-- Production adds a second Gemini pass for ambiguous cases.
+-- Keep the Google Place ID found in step 2 only if Gemini found a confident match
+-- whose postal code is the same as the Google Maps address.
+UPDATE DEALER_ADDRESS_STANDARD das
+SET GOOGLE_PLACE_ID = d.GOOGLE_PLACE_ID
 FROM DEALERS d
-LEFT JOIN DEALER_ADDRESS_STANDARD das
-    ON d.AGENCY_ID = das.AGENCY_ID AND d.SITE = das.SITE
-LEFT JOIN DEALER_GOOGLE_MAP gm
-    ON das.GOOGLE_PLACE_ID = gm.GOOGLE_PLACE_ID;
+JOIN DEALER_GOOGLE_MAP g ON d.GOOGLE_PLACE_ID = g.GOOGLE_PLACE_ID
+WHERE das.AGENCY_ID = d.AGENCY_ID AND das.SITE = d.SITE
+  AND das.AI_JSON:potential_matches[0]:match_confidence_score::FLOAT >= 0.7
+  AND CONTAINS(g.GOOGLE_JSON:formatted_address::VARCHAR,
+               das.AI_JSON:potential_matches[0]:cp::VARCHAR);
 
--- 2. Explore the enriched results
-SELECT * FROM DEALERS_ENRICHED LIMIT 20;
+-- One view that joins the 3 tables: raw crawl vs Gemini vs Google Maps, side by side.
+CREATE OR REPLACE VIEW DEALERS_ENRICHED AS
+SELECT d.AGENCY_ID, d.SITE,
+       d.AGENCY_NAME                                                   AS RAW_NAME,
+       das.AI_JSON:potential_matches[0]:found_agency_name::VARCHAR     AS AI_AGENCY_NAME,
+       CONCAT_WS(', ', d.ADDRESS, d.ZIP_CODE, d.CITY)                  AS RAW_ADDRESS,
+       das.AI_STANDARD_ADDRESS,
+       d.SIRET                                                         AS RAW_SIRET,
+       das.AI_JSON:potential_matches[0]:establishment_level_number::VARCHAR AS AI_SIRET,
+       das.GOOGLE_PLACE_ID                                             AS RESOLVED_PLACE_ID,
+       g.GOOGLE_JSON:formatted_address::VARCHAR                        AS GOOGLE_ADDRESS,
+       g.GOOGLE_JSON:latitude::FLOAT                                   AS LATITUDE,
+       g.GOOGLE_JSON:longitude::FLOAT                                  AS LONGITUDE,
+       das.AI_JSON:potential_matches[0]:match_confidence_score::FLOAT  AS CONFIDENCE
+FROM DEALERS d
+JOIN DEALER_ADDRESS_STANDARD das ON d.AGENCY_ID = das.AGENCY_ID AND d.SITE = das.SITE
+LEFT JOIN DEALER_GOOGLE_MAP g ON das.GOOGLE_PLACE_ID = g.GOOGLE_PLACE_ID;
 
--- 3. Enrichment success rate
-SELECT
-    COUNT(*) AS TOTAL,
-    SUM(CASE WHEN AI_STANDARD_ADDRESS IS NOT NULL THEN 1 ELSE 0 END) AS WITH_STD_ADDRESS,
-    SUM(CASE WHEN RESOLVED_PLACE_ID IS NOT NULL THEN 1 ELSE 0 END) AS WITH_PLACE_ID,
-    ROUND(WITH_STD_ADDRESS / TOTAL * 100, 1) AS ADDRESS_RATE_PCT,
-    ROUND(WITH_PLACE_ID / TOTAL * 100, 1) AS PLACE_ID_RATE_PCT
+-- Compare RAW_* columns with the enriched ones.
+SELECT * FROM DEALERS_ENRICHED ORDER BY CONFIDENCE DESC;
+
+-- How many dealers were standardized and resolved.
+SELECT COUNT(*) AS PROCESSED,
+       COUNT(AI_STANDARD_ADDRESS) AS STANDARDIZED,
+       COUNT(RESOLVED_PLACE_ID) AS PLACE_ID_RESOLVED
 FROM DEALERS_ENRICHED;
 
--- 4. Confidence distribution
-SELECT
-    CASE
-        WHEN AI_CONFIDENCE >= 0.9 THEN 'High (>=0.9)'
-        WHEN AI_CONFIDENCE >= 0.7 THEN 'Medium (0.7-0.9)'
-        WHEN AI_CONFIDENCE > 0    THEN 'Low (<0.7)'
-        ELSE 'No result'
-    END AS CONFIDENCE_BUCKET,
-    COUNT(*) AS DEALER_COUNT
-FROM DEALERS_ENRICHED
-GROUP BY CONFIDENCE_BUCKET
-ORDER BY CONFIDENCE_BUCKET;
-
--- 5. Before / after comparison
-SELECT
-    RAW_AGENCY_NAME,
-    CLEAN_AGENCY_NAME,
-    RAW_ADDRESS || ', ' || RAW_CITY || ' ' || RAW_ZIP_CODE AS RAW_FULL_ADDRESS,
-    AI_STANDARD_ADDRESS,
-    AI_CONFIDENCE
-FROM DEALERS_ENRICHED
-WHERE AI_CONFIDENCE IS NOT NULL
-ORDER BY AI_CONFIDENCE DESC
-LIMIT 20;
-
--- 6. Dealers still missing enrichment — what went wrong?
-SELECT
-    AGENCY_ID, SITE, RAW_AGENCY_NAME, RAW_ADDRESS, RAW_CITY
-FROM DEALERS_ENRICHED
-WHERE AI_STANDARD_ADDRESS IS NULL
-LIMIT 10;
-
--- 7. Summary: what we built today
-SELECT
-    'DEALERS' AS TABLE_NAME, COUNT(*) AS ROWS FROM DEALERS
-UNION ALL
-    SELECT 'DEALER_GOOGLE_MAP', COUNT(*) FROM DEALER_GOOGLE_MAP
-UNION ALL
-    SELECT 'DEALER_ADDRESS_STANDARD', COUNT(*) FROM DEALER_ADDRESS_STANDARD;
+-- USE ROLE ACCOUNTADMIN;
+-- DROP INTEGRATION IF EXISTS GOOGLE_MAPS_EAI;
+-- DROP INTEGRATION IF EXISTS GEMINI_EAI;
+-- DROP DATABASE IF EXISTS WORKSHOP_DB;
+SELECT 'cleanup cell (commented out)' AS INFO;

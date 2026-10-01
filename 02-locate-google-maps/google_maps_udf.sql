@@ -1,145 +1,101 @@
-----------------------------------------------------------------------
--- Google Maps UDF: Find Place + Place Details → DEALER_GOOGLE_MAP
-----------------------------------------------------------------------
+-- ----------------------------------------------------------------------
+-- Block 2 - Locate: UDF FIND_GOOGLE_PLACE -> DEALERS.GOOGLE_PLACE_ID + DEALER_GOOGLE_MAP
+-- Same code as the matching cells of workshop_notebook.ipynb
+-- ----------------------------------------------------------------------
+USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
-USE ROLE SYSADMIN;
-USE DATABASE WORKSHOP_DB;
-USE SCHEMA PUBLIC;
-USE WAREHOUSE WORKSHOP_WH;
-
--- 1. Create the UDF
-CREATE OR REPLACE FUNCTION find_google_place(
-    agency_name VARCHAR,
-    address VARCHAR,
-    city VARCHAR,
-    zip_code VARCHAR
-)
+-- Python UDF = your Python script, executed by Snowflake on each row. No server, no cron, no file I/O.
+-- It returns a VARIANT (JSON) so we keep the full Google answer and parse it in SQL afterwards.
+-- status values: OK / NOT_FOUND (no result) / ERROR (bad key, quota, API disabled...: see the error field).
+CREATE OR REPLACE FUNCTION FIND_GOOGLE_PLACE(AGENCY_NAME VARCHAR, ADDRESS VARCHAR, CITY VARCHAR, ZIP_CODE VARCHAR)
 RETURNS VARIANT
 LANGUAGE PYTHON
 RUNTIME_VERSION = '3.11'
 PACKAGES = ('requests')
 HANDLER = 'find_place'
-EXTERNAL_ACCESS_INTEGRATIONS = (google_maps_eai)
-SECRETS = ('gmap_key' = google_maps_api_key)
+EXTERNAL_ACCESS_INTEGRATIONS = (GOOGLE_MAPS_EAI)
+SECRETS = ('gmap_key' = WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_API_KEY)
 AS
 $$
 import _snowflake
 import requests
-import json
 
-def find_place(agency_name: str, address: str, city: str, zip_code: str) -> dict:
-    api_key = _snowflake.get_generic_secret_string('gmap_key')
-
-    # Build search query from available fields
-    query_parts = [p for p in [agency_name, address, city, zip_code] if p]
-    search_query = ', '.join(query_parts)
-
-    # --- Step 1: Find Place (text search) ---
-    find_url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
-    find_params = {
-        "input": search_query,
-        "inputtype": "textquery",
-        "fields": "place_id,name,formatted_address,geometry",
-        "language": "fr",
-        "key": api_key
-    }
-
+def find_place(agency_name, address, city, zip_code):
+    key = _snowflake.get_generic_secret_string('gmap_key')
+    query = ', '.join(p for p in [agency_name, address, zip_code, city] if p)
     try:
-        find_resp = requests.get(find_url, params=find_params, timeout=15)
-        find_resp.raise_for_status()
-        find_data = find_resp.json()
-
-        if find_data.get("status") != "OK" or not find_data.get("candidates"):
-            return {
-                "status": "NOT_FOUND",
-                "search_query": search_query,
-                "google_place_id": None,
-                "details": None
-            }
-
-        candidate = find_data["candidates"][0]
-        place_id = candidate.get("place_id")
-
-        if not place_id:
-            return {
-                "status": "NO_PLACE_ID",
-                "search_query": search_query,
-                "google_place_id": None,
-                "details": candidate
-            }
-
-        # --- Step 2: Place Details ---
-        details_url = "https://maps.googleapis.com/maps/api/place/details/json"
-        details_params = {
-            "place_id": place_id,
-            "fields": "place_id,name,formatted_address,formatted_phone_number,website,geometry,business_status,types,address_components",
-            "language": "fr",
-            "key": api_key
-        }
-
-        details_resp = requests.get(details_url, params=details_params, timeout=15)
-        details_resp.raise_for_status()
-        details_data = details_resp.json()
-
-        result = details_data.get("result", {})
-
-        return {
-            "status": "OK",
-            "search_query": search_query,
-            "google_place_id": place_id,
-            "name": result.get("name"),
-            "formatted_address": result.get("formatted_address"),
-            "phone": result.get("formatted_phone_number"),
-            "website": result.get("website"),
-            "latitude": result.get("geometry", {}).get("location", {}).get("lat"),
-            "longitude": result.get("geometry", {}).get("location", {}).get("lng"),
-            "business_status": result.get("business_status"),
-            "types": result.get("types", []),
-            "address_components": result.get("address_components", []),
-            "full_response": result
-        }
-
+        r = requests.get(
+            "https://maps.googleapis.com/maps/api/place/findplacefromtext/json",
+            params={"input": query, "inputtype": "textquery",
+                    "fields": "place_id", "language": "fr", "key": key},
+            timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        if data.get("status") == "ZERO_RESULTS":
+            return {"status": "NOT_FOUND", "query": query}
+        if data.get("status") != "OK":
+            # REQUEST_DENIED (bad key / API not enabled), OVER_QUERY_LIMIT, INVALID_REQUEST...
+            return {"status": "ERROR", "query": query,
+                    "error": f"{data.get('status')}: {data.get('error_message', '')}"}
+        cands = data["candidates"]
+        place_id = cands[0]["place_id"]
+        d = requests.get(
+            "https://maps.googleapis.com/maps/api/place/details/json",
+            params={"place_id": place_id, "language": "fr", "key": key,
+                    "fields": "place_id,name,formatted_address,formatted_phone_number,website,geometry,business_status,types"},
+            timeout=15)
+        d.raise_for_status()
+        res = d.json().get("result", {})
+        loc = res.get("geometry", {}).get("location", {})
+        return {"status": "OK", "query": query, "google_place_id": place_id,
+                "name": res.get("name"), "formatted_address": res.get("formatted_address"),
+                "phone": res.get("formatted_phone_number"), "website": res.get("website"),
+                "latitude": loc.get("lat"), "longitude": loc.get("lng"),
+                "business_status": res.get("business_status"), "types": res.get("types", [])}
     except Exception as e:
-        return {
-            "status": "ERROR",
-            "search_query": search_query,
-            "error": str(e),
-            "google_place_id": None
-        }
+        # type only: requests errors embed the URL, which contains the API key
+        return {"status": "ERROR", "query": query, "error": type(e).__name__}
 $$;
 
--- 2. Test on 3 rows
-SELECT
-    d.AGENCY_ID,
-    d.SITE,
-    d.AGENCY_NAME,
-    find_google_place(d.AGENCY_NAME, d.ADDRESS, d.CITY, d.ZIP_CODE) AS GMAP_RESULT
-FROM DEALERS d
-LIMIT 3;
+-- Always test on a few rows first: each call is billed by Google.
+SELECT AGENCY_NAME, FIND_GOOGLE_PLACE(AGENCY_NAME, ADDRESS, CITY, ZIP_CODE) AS GMAP
+FROM DEALERS LIMIT 3;
 
--- 3. Populate DEALER_GOOGLE_MAP from all dealers
---    (In production, you'd check for existing entries to avoid re-fetching)
-INSERT INTO DEALER_GOOGLE_MAP (GOOGLE_PLACE_ID, AI_AGENCY_NAME, GOOGLE_JSON)
-SELECT DISTINCT
-    gmap.VALUE:"google_place_id"::VARCHAR AS GOOGLE_PLACE_ID,
-    gmap.VALUE:"name"::VARCHAR AS AI_AGENCY_NAME,
-    gmap.VALUE AS GOOGLE_JSON
-FROM DEALERS d,
-LATERAL (
-    SELECT find_google_place(d.AGENCY_NAME, d.ADDRESS, d.CITY, d.ZIP_CODE) AS VALUE
-) gmap
-WHERE gmap.VALUE:"google_place_id" IS NOT NULL
-  AND gmap.VALUE:"status"::VARCHAR = 'OK'
-  AND NOT EXISTS (
-      SELECT 1 FROM DEALER_GOOGLE_MAP existing
-      WHERE existing.GOOGLE_PLACE_ID = gmap.VALUE:"google_place_id"::VARCHAR
-  );
+-- Call the API ONCE per dealer and keep the raw results in a table.
+-- The next cells reuse this table instead of calling the API again.
+-- 10  /* SAMPLE_SIZE: number of dealers sent to the APIs */ is the Python variable defined at the top of the notebook (Jinja templating).
+CREATE OR REPLACE TABLE GMAP_RESULTS AS
+SELECT AGENCY_ID, SITE, FIND_GOOGLE_PLACE(AGENCY_NAME, ADDRESS, CITY, ZIP_CODE) AS GMAP
+FROM (SELECT * FROM DEALERS ORDER BY AGENCY_ID LIMIT 10  /* SAMPLE_SIZE: number of dealers sent to the APIs */);
 
--- 4. Check results
-SELECT COUNT(*) AS PLACES_FOUND FROM DEALER_GOOGLE_MAP;
+-- Check before going further: if everything is ERROR, read the error field (usually the key or a disabled API).
+SELECT GMAP:status::VARCHAR AS STATUS, COUNT(*) AS N FROM GMAP_RESULTS GROUP BY 1;
 
+-- Store the Place ID on the dealer row (DEALERS.GOOGLE_PLACE_ID, as in the target architecture).
+UPDATE DEALERS d
+SET GOOGLE_PLACE_ID = g.GMAP:google_place_id::VARCHAR
+FROM GMAP_RESULTS g
+WHERE d.AGENCY_ID = g.AGENCY_ID AND d.SITE = g.SITE
+  AND g.GMAP:status::VARCHAR = 'OK';
+
+-- Fill the cache. MERGE ... WHEN NOT MATCHED = only insert places we do not know yet,
+-- so re-running the pipeline next month does not duplicate rows.
+-- QUALIFY keeps one row per Place ID when several dealers point to the same place (multi-site dealers).
+MERGE INTO DEALER_GOOGLE_MAP t
+USING (
+    SELECT GMAP:google_place_id::VARCHAR AS GOOGLE_PLACE_ID,
+           GMAP:name::VARCHAR            AS AI_AGENCY_NAME,
+           GMAP                          AS GOOGLE_JSON
+    FROM GMAP_RESULTS
+    WHERE GMAP:status::VARCHAR = 'OK'
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY GOOGLE_PLACE_ID ORDER BY AGENCY_ID) = 1
+) s
+ON t.GOOGLE_PLACE_ID = s.GOOGLE_PLACE_ID
+WHEN NOT MATCHED THEN INSERT (GOOGLE_PLACE_ID, AI_AGENCY_NAME, GOOGLE_JSON)
+VALUES (s.GOOGLE_PLACE_ID, s.AI_AGENCY_NAME, s.GOOGLE_JSON);
+
+-- Content of the Google Maps cache.
 SELECT GOOGLE_PLACE_ID, AI_AGENCY_NAME,
-       GOOGLE_JSON:"formatted_address"::VARCHAR AS ADDRESS,
-       GOOGLE_JSON:"phone"::VARCHAR AS PHONE
-FROM DEALER_GOOGLE_MAP
-LIMIT 10;
+       GOOGLE_JSON:formatted_address::VARCHAR AS ADDRESS,
+       GOOGLE_JSON:phone::VARCHAR AS PHONE
+FROM DEALER_GOOGLE_MAP;

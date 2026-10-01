@@ -1,29 +1,21 @@
-----------------------------------------------------------------------
--- Setup External Access Integration for Gemini API
-----------------------------------------------------------------------
+-- ----------------------------------------------------------------------
+-- Block 3 - Enrich: External Access Integration for Gemini (ACCOUNTADMIN)
+-- Same code as the matching cells of workshop_notebook.ipynb
+-- ----------------------------------------------------------------------
 
+-- Same pattern as Google Maps: network rule + secret + integration, for the Gemini API host.
+-- Requires ACCOUNTADMIN. Run once.
 USE ROLE ACCOUNTADMIN;
-USE DATABASE WORKSHOP_DB;
-USE SCHEMA PUBLIC;
-
--- 1. Network Rule
-CREATE OR REPLACE NETWORK RULE gemini_api_rule
-    MODE = EGRESS
-    TYPE = HOST_PORT
+CREATE OR REPLACE NETWORK RULE WORKSHOP_DB.PUBLIC.GEMINI_RULE
+    MODE = EGRESS TYPE = HOST_PORT
     VALUE_LIST = ('generativelanguage.googleapis.com');
-
--- 2. Secret — REPLACE with your actual Gemini API key
-CREATE OR REPLACE SECRET gemini_api_key
+CREATE OR REPLACE SECRET WORKSHOP_DB.PUBLIC.GEMINI_API_KEY
     TYPE = GENERIC_STRING
-    SECRET_STRING = 'YOUR_GEMINI_API_KEY';
-
--- 3. External Access Integration
-CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION gemini_eai
-    ALLOWED_NETWORK_RULES = (gemini_api_rule)
-    ALLOWED_AUTHENTICATION_SECRETS = (gemini_api_key)
+    SECRET_STRING = 'PASTE_GEMINI_KEY_HERE';
+CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION GEMINI_EAI
+    ALLOWED_NETWORK_RULES = (WORKSHOP_DB.PUBLIC.GEMINI_RULE)
+    ALLOWED_AUTHENTICATION_SECRETS = (WORKSHOP_DB.PUBLIC.GEMINI_API_KEY)
     ENABLED = TRUE;
-
--- 4. Grant to SYSADMIN
-GRANT USAGE ON INTEGRATION gemini_eai TO ROLE SYSADMIN;
-
-DESCRIBE INTEGRATION gemini_eai;
+GRANT USAGE ON INTEGRATION GEMINI_EAI TO ROLE SYSADMIN;
+GRANT READ ON SECRET WORKSHOP_DB.PUBLIC.GEMINI_API_KEY TO ROLE SYSADMIN;
+USE ROLE SYSADMIN;

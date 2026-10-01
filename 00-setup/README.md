@@ -1,40 +1,31 @@
 # Block 0 — Setup + Briefing
 
 ## Goal
+Get everyone connected, create the workshop environment, load the real sample, and present the pipeline.
 
-Get everyone connected, create the workshop database, load the real sample data, and present the pipeline architecture.
-
-## Step 1: Test Snow CLI
-
+## 1. Test the Snow CLI connection
 ```bash
 snow connection test
-snow sql -q "SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()"
+snow sql -q "SELECT CURRENT_ACCOUNT_NAME(), CURRENT_USER(), CURRENT_ROLE()"
 ```
+Check the account name: it must be the Joreca account.
 
-## Step 2: Create the workshop environment
+## 2. Create the environment, upload the files, load DEALERS
+`create_workshop_db.sql` creates `WORKSHOP_DB`, the `WORKSHOP_WH` warehouse, the `WORKSHOP_STAGE` stage and the 3 tables.
 
 ```bash
-snow sql -f create_workshop_db.sql
+# 1. create database / warehouse / stage (first statements of the file)
+snow sql -f 00-setup/create_workshop_db.sql
+# 2. upload the data and the Gemini prompt to the stage
+snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE
+snow stage copy prompts/gemini_search_agency.txt @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE/prompts
+# 3. re-run the file: the COPY INTO now finds the CSV
+snow sql -f 00-setup/create_workshop_db.sql
 ```
 
-## Step 3: Load the data
+Expected at the end: `DEALERS = 200`, `DEALER_GOOGLE_MAP = 0`, `DEALER_ADDRESS_STANDARD = 0`.
 
-Upload the CSV to the stage, then copy into the DEALERS table:
-
-```bash
-snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE --database WORKSHOP_DB --schema PUBLIC
-snow sql -q "CALL WORKSHOP_DB.PUBLIC.LOAD_DEALERS()"
-```
-
-Or run `create_workshop_db.sql` block by block in a Notebook.
-
-## Step 4: Verify
-
-```bash
-snow sql -q "SELECT COUNT(*) FROM WORKSHOP_DB.PUBLIC.DEALERS"
--- Expected: 200
-```
-
-## Briefing
-
-Present the pipeline (9 steps), zoom on steps 1–4 that we cover today. Show the data architecture diagram. Explain why we're doing this: **replace the Linux server + MariaDB + batch files with Snowflake**.
+## Briefing (whiteboard)
+- The 9 pipeline steps, focus on 1-4 today
+- The target tables: `DEALERS`, `DEALER_GOOGLE_MAP`, `DEALER_ADDRESS_STANDARD` (same names as production)
+- What replaces what: MariaDB -> tables, Linux server + cron -> UDFs / Tasks, local files -> stage, batch JSON files -> one SQL query

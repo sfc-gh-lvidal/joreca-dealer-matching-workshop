@@ -1,47 +1,23 @@
-----------------------------------------------------------------------
--- Explore the DEALERS table — data quality and patterns
-----------------------------------------------------------------------
+-- ----------------------------------------------------------------------
+-- Block 1 - Collect: explore the DEALERS table
+-- Same code as the matching cells of workshop_notebook.ipynb
+-- ----------------------------------------------------------------------
+USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
-USE DATABASE WORKSHOP_DB;
-USE SCHEMA PUBLIC;
-
--- 1. Overview
-SELECT COUNT(*) AS TOTAL_DEALERS FROM DEALERS;
-
+-- Raw crawl data: look at name and address quality.
 SELECT * FROM DEALERS LIMIT 10;
 
--- 2. Which marketplace sites are represented?
-SELECT SITE, COUNT(*) AS DEALER_COUNT
-FROM DEALERS
-GROUP BY SITE
-ORDER BY DEALER_COUNT DESC;
+-- Which marketplaces the sample comes from.
+SELECT SITE, COUNT(*) AS N FROM DEALERS GROUP BY SITE ORDER BY N DESC;
 
--- 3. SIRET coverage — how many dealers have a SIRET?
-SELECT
-    COUNT(*) AS TOTAL,
-    SUM(CASE WHEN SIRET != '' AND SIRET IS NOT NULL THEN 1 ELSE 0 END) AS WITH_SIRET,
-    TOTAL - WITH_SIRET AS WITHOUT_SIRET,
-    ROUND(WITH_SIRET / TOTAL * 100, 1) AS SIRET_COVERAGE_PCT
+-- How many dealers already have a SIRET from the crawl (the rest must be found by Gemini).
+SELECT COUNT(*) AS TOTAL,
+       COUNT(SIRET) AS WITH_SIRET,
+       ROUND(COUNT(SIRET) / COUNT(*) * 100, 1) AS SIRET_PCT
 FROM DEALERS;
 
--- 4. Address quality — look at the inconsistencies
+-- Typical issues: country prefix in the address (FR-74100), underscores in city names, missing zip.
 SELECT AGENCY_NAME, ADDRESS, CITY, ZIP_CODE
 FROM DEALERS
-WHERE ADDRESS LIKE 'FR-%'    -- addresses with country prefix embedded
-   OR CITY LIKE '%\_%'       -- cities with underscores
-   OR ZIP_CODE = ''
+WHERE ADDRESS ILIKE 'FR-%' OR CITY LIKE '%\\_%' OR ZIP_CODE IS NULL
 LIMIT 20;
-
--- 5. Name variations — same dealer, different names across sites?
-SELECT AGENCY_NAME, COUNT(DISTINCT SITE) AS SITE_COUNT, ARRAY_AGG(DISTINCT SITE) AS SITES
-FROM DEALERS
-GROUP BY AGENCY_NAME
-HAVING SITE_COUNT > 1
-ORDER BY SITE_COUNT DESC
-LIMIT 10;
-
--- 6. Sample of what we need to enrich
-SELECT AGENCY_ID, SITE, AGENCY_NAME, ADDRESS, CITY, ZIP_CODE
-FROM DEALERS
-WHERE SIRET = '' OR SIRET IS NULL
-LIMIT 15;

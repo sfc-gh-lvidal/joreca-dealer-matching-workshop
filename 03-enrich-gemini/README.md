@@ -1,25 +1,33 @@
-# Block 3 — Enrich: Gemini AI for Address Standardization
+# Block 3 — Enrich: Gemini search with your production prompt
 
 ## Goal
+Call Gemini from Snowflake, with **your production prompt** and Google Search grounding, to find each dealer online and get a standardized address, SIRET, phone, website... Results go to `DEALER_ADDRESS_STANDARD`.
 
-Call the Gemini API from Snowflake to standardize addresses and verify dealer identity. This populates `DEALER_ADDRESS_STANDARD`, using `DEALER_GOOGLE_MAP` data as additional context.
+## What replaces what
+| Today (Linux + batch) | In Snowflake |
+|-----------------------|--------------|
+| Export rows from MariaDB to a JSON file | Not needed: the UDF reads the table |
+| Upload the file to the Gemini batch API, wait, download | One `SELECT SEARCH_AGENCY(...)` |
+| Parse the result file and re-insert in the database | `INSERT ... SELECT` + JSON notation `AI_JSON:potential_matches[0]:standard_address` |
+| Prompt stored in code | Prompt stored as a file on the stage (`prompts/gemini_search_agency.txt`) |
 
-## What the UDF does
+## The UDF `SEARCH_AGENCY(agency_name, address)`
+- Reads the prompt file from the stage (`IMPORTS`) and sends it as the system instruction
+- Sends the same inputs as your batch: `Agency Name: ...` / `Address: ...`
+- Enables `google_search` so Gemini can do the online research the prompt asks for
+- Returns the JSON defined by the prompt, plus `_usage` (input / output tokens)
+- Model: `gemini-2.5-flash` (constant `MODEL` in the UDF: change it if you use another model in production)
 
-For each dealer, the `standardize_address` UDF sends Gemini:
-- The raw dealer info (name, address, city, zip)
-- The Google Maps data we found in step 2 (if any)
+To change the prompt: re-upload the file, then re-run the `CREATE FUNCTION`. No code change.
 
-Gemini returns:
-- A standardized, clean address
-- A verification of whether the Google Maps result matches the raw dealer
-- A confidence assessment
+## Steps
+1. Paste your key in `setup_eai_gemini.sql`, run it (requires ACCOUNTADMIN)
+2. Run `search_agency_udf.sql`: creates the UDF, tests 3 rows, processes 10 dealers, shows tokens per call
 
-## The IS_REUSED pattern
+Each call does web research: expect several seconds per dealer.
 
-In production, Joreca reuses last month's results when the input hasn't changed. During the workshop we process everything fresh, but the `IS_REUSED` column in `DEALER_ADDRESS_STANDARD` is there to show the pattern. In production, you'd check if (AGENCY_ID, SITE) already has a result from the previous period and skip the API call.
+## IS_REUSED
+In production you reuse last month's result when the dealer did not change. The column is there; the workshop always calls the API (`IS_REUSED = FALSE`).
 
-## Setup
-
-1. Run `setup_eai_gemini.sql` (requires ACCOUNTADMIN) — or reuse the same EAI if you added Gemini to the Google Maps one
-2. Run `standardize_address_udf.sql` to create the UDF and populate `DEALER_ADDRESS_STANDARD`
+## Cost
+`token_usage` gives the real average input / output tokens per dealer. Multiply by your monthly volume to compare with your Google invoice and with Cortex AI (optional module 06).
