@@ -106,8 +106,8 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 ## Prerequisites
 
 **Install:**
-- Snow CLI: `pip install snowflake-cli-labs` (or `brew install snowflake-cli`)
-- Python 3.8+
+- Snow CLI: see [installation guide](https://docs.snowflake.com/en/developer-guide/snowflake-cli/installation/installation) — macOS: `brew tap snowflakedb/snowflake-cli && brew trust --cask snowflakedb/snowflake-cli/snowflake-cli && brew install --cask snowflake-cli`; Windows / Linux: native installer; any OS: `uv tool install snowflake-cli` or `pipx install snowflake-cli`
+- Python 3.10+ (only if you install Snow CLI as a Python tool)
 - VS Code + Snowflake extension (recommended)
 - Git
 
