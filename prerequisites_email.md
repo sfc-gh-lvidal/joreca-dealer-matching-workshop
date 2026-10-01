@@ -14,20 +14,8 @@ To make the most of our time together, here are a few things to prepare beforeha
 
 ## To install
 
-- **Snow CLI** (Snowflake command-line tool). Pick the method for your OS:
-  - macOS (recommended, Snowflake-maintained tap):
-    ```bash
-    brew tap snowflakedb/snowflake-cli
-    brew trust --cask snowflakedb/snowflake-cli/snowflake-cli
-    brew install --cask snowflake-cli
-    ```
-  - Windows: download and run the installer from the Snowflake CLI repository (https://sfc-repo.snowflakecomputing.com/snowflake-cli/index.html)
-  - Linux: download the `.deb` (`sudo dpkg -i snowflake-cli-<version>.deb`) or `.rpm` (`sudo rpm -i snowflake-cli-<version>.rpm`) package from the same repository
-  - Any OS, as a Python tool (requires **Python 3.10+**): `uv tool install snowflake-cli` or `pipx install snowflake-cli`
-  - Check the install: `snow --help`
-  - Docs: https://docs.snowflake.com/en/developer-guide/snowflake-cli/installation/installation
-
-- **Python 3.10+** — only needed if you install Snow CLI as a Python tool
+- **Snow CLI** (Snowflake command-line tool): follow the installation guide for your OS, then check with `snow --help`
+  https://docs.snowflake.com/en/developer-guide/snowflake-cli/installation/installation
 
 - **VS Code** (recommended) — with the Snowflake extension
 
