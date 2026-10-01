@@ -19,7 +19,6 @@ To make the most of our time together, here are a few things to prepare beforeha
 
 - **VS Code** (recommended) — with the Snowflake extension
 
-- **Git** — to clone the workshop repository
 
 ## To prepare
 
