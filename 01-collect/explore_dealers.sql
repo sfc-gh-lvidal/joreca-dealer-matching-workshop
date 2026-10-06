@@ -2,7 +2,7 @@
 -- Block 1 - Collect: explore the DEALERS table
 -- Same code as the matching cells of workshop_notebook.ipynb
 -- ----------------------------------------------------------------------
-USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
+USE ROLE WORKSHOP_DEV; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
 -- Raw crawl data: look at name and address quality.
 SELECT * FROM DEALERS LIMIT 10;

@@ -21,7 +21,7 @@ Call Gemini from Snowflake, with **your production prompt** and Google Search gr
 To change the prompt: re-upload the file, then re-run the `CREATE FUNCTION`. No code change.
 
 ## Steps
-1. Paste your key in `setup_eai_gemini.sql`, run it (requires ACCOUNTADMIN)
+1. Paste your key in `setup_eai_gemini.sql`, run it: `ALTER SECRET` (integration created by the admin)
 2. Run `search_agency_udf.sql`: creates the UDF, tests 3 rows, processes 10 dealers, shows tokens per call
 
 Each call does web research: expect several seconds per dealer.

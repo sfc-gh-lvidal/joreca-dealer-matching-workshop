@@ -153,18 +153,19 @@ workshop/
 
 ## Two ways to run the workshop
 
-**Snowflake Notebook** — create a Git workspace from this repo (admin runs `00-setup/setup_git_integration.sql` once, see `00-setup/README.md`), open `workshop_notebook.ipynb` and run the cells in order.
+**Snowflake Notebook** — create a Git workspace from this repo (admin runs `00-setup/admin_prereqs.sql` once, then select the role `WORKSHOP_DEV`, see `00-setup/README.md`), open `workshop_notebook.ipynb` and run the cells in order.
 
 **Snow CLI** — run the SQL files from your terminal, in order:
 
 ```bash
+snow sql -f 00-setup/admin_prereqs.sql --role ACCOUNTADMIN   # once, by the admin
 snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE      # after 00-setup created the stage
 snow stage copy prompts/gemini_search_agency.txt @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE/prompts
 snow sql -f 00-setup/create_workshop_db.sql
 snow sql -f 01-collect/explore_dealers.sql
-snow sql -f 02-locate-google-maps/setup_eai_google.sql      # paste your key first, ACCOUNTADMIN
+snow sql -f 02-locate-google-maps/setup_eai_google.sql      # paste your key first (ALTER SECRET)
 snow sql -f 02-locate-google-maps/google_maps_udf.sql
-snow sql -f 03-enrich-gemini/setup_eai_gemini.sql           # paste your key first, ACCOUNTADMIN
+snow sql -f 03-enrich-gemini/setup_eai_gemini.sql           # paste your key first (ALTER SECRET)
 snow sql -f 03-enrich-gemini/search_agency_udf.sql
 snow sql -f 04-resolve/resolve_and_compare.sql
 ```

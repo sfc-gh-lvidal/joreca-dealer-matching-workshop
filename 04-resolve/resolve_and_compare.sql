@@ -2,7 +2,7 @@
 -- Block 4 - Resolve: final Google Place ID + enriched view + cleanup
 -- Same code as the matching cells of workshop_notebook.ipynb
 -- ----------------------------------------------------------------------
-USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
+USE ROLE WORKSHOP_DEV; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
 -- Step 4 (Resolve): decide which Google Place ID is the right one for each dealer.
 -- Simplified rule for the workshop: keep it only if Gemini is confident (>= 0.7)
@@ -46,8 +46,6 @@ SELECT COUNT(*) AS PROCESSED,
        COUNT(RESOLVED_PLACE_ID) AS PLACE_ID_RESOLVED
 FROM DEALERS_ENRICHED;
 
--- USE ROLE ACCOUNTADMIN;
--- DROP INTEGRATION IF EXISTS GOOGLE_MAPS_EAI;
--- DROP INTEGRATION IF EXISTS GEMINI_EAI;
--- DROP DATABASE IF EXISTS WORKSHOP_DB;
+-- Cleanup after the workshop: see the CLEANUP section at the end of 00-setup/admin_prereqs.sql
+-- (ACCOUNTADMIN drops the 3 integrations, WORKSHOP_DB, WORKSHOP_WH and the WORKSHOP_DEV role).
 SELECT 'cleanup cell (commented out)' AS INFO;

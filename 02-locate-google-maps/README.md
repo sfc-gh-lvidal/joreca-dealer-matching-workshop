@@ -37,7 +37,7 @@ This replaces the part of the pipeline where you extract data from MariaDB, buil
 
 ## Setup
 
-1. Paste your key in `setup_eai_google.sql`, run it (requires ACCOUNTADMIN): network rule + secret + integration
+1. Paste your key in `setup_eai_google.sql`, run it: `ALTER SECRET` (network rule, secret and integration were created by the admin in `00-setup/admin_prereqs.sql`)
 2. Run `google_maps_udf.sql`: creates the UDF, tests it on 3 rows, then processes 10 dealers (`LIMIT 10`)
 3. Check `gmap_status`: if all rows are `ERROR`, fix the key before going further
 

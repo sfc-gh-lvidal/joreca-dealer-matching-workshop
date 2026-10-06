@@ -2,7 +2,7 @@
 -- Block 2 - Locate: UDF FIND_GOOGLE_PLACE -> DEALERS.GOOGLE_PLACE_ID + DEALER_GOOGLE_MAP
 -- Same code as the matching cells of workshop_notebook.ipynb
 -- ----------------------------------------------------------------------
-USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
+USE ROLE WORKSHOP_DEV; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
 -- Python UDF = your Python script, executed by Snowflake on each row. No server, no cron, no file I/O.
 -- It returns a VARIANT (JSON) so we keep the full Google answer and parse it in SQL afterwards.

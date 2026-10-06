@@ -3,20 +3,37 @@
 ## Goal
 Get everyone connected, create the workshop environment, load the real sample, and present the pipeline.
 
-## 0. (Admin, once) Allow Git workspaces in Snowsight
-To open this repo directly in Snowsight, an admin runs `setup_git_integration.sql` once (needs `ACCOUNTADMIN` or `CREATE API INTEGRATION`):
+## 0. (Admin, once) Account prerequisites
+The participant who holds `ACCOUNTADMIN` runs `admin_prereqs.sql` once, before the session (~1 min).
+Edit the `GRANT ROLE WORKSHOP_DEV TO USER ...` lines first (one per developer).
 
 ```bash
-snow sql -f 00-setup/setup_git_integration.sql
+snow sql -f 00-setup/admin_prereqs.sql --role ACCOUNTADMIN
 ```
 
-Then each developer, with a role that has USAGE on the integration (user menu > *Switch role*):
+It creates everything that needs `ACCOUNTADMIN`, then hands it to a single workshop role:
+
+| Object | Who creates it | Used by `WORKSHOP_DEV` as |
+|--------|----------------|---------------------------|
+| Role `WORKSHOP_DEV`, granted to each dev | admin | the role for the whole workshop |
+| `WORKSHOP_WH`, `WORKSHOP_DB` | admin | USAGE on the warehouse, OWNER of the database |
+| Network rules + secrets (placeholder keys) | admin | OWNER: devs paste the real keys with `ALTER SECRET` |
+| `GOOGLE_MAPS_EAI`, `GEMINI_EAI`, `GITHUB_WORKSHOP_API` | admin | USAGE |
+| Stage, tables, UDFs, views | developers | OWNER |
+
+From then on, every developer works with `WORKSHOP_DEV` only:
+- Snow CLI: the scripts start with `USE ROLE WORKSHOP_DEV` (or add `--role WORKSHOP_DEV`)
+- Snowsight: user menu (bottom left) > *Switch role* > `WORKSHOP_DEV`
+
+### Open the repo in Snowsight (Git workspace)
+With the role `WORKSHOP_DEV` selected:
 1. **Projects > Workspaces > From Git repository**
 2. Repository URL: `https://github.com/sfc-gh-lvidal/joreca-dealer-matching-workshop`
 3. API integration: `GITHUB_WORKSHOP_API`
 4. Authentication: **Public repository** > *Create*
 
 Each workspace belongs to its user, so files don't collide. It is read-only towards GitHub (pull only, no push).
+The Snowflake objects (`WORKSHOP_DB`) are shared: work in pairs, one pair runs the `CREATE OR REPLACE` statements at a time.
 
 ## 1. Test the Snow CLI connection
 ```bash
@@ -26,10 +43,10 @@ snow sql -q "SELECT CURRENT_ACCOUNT_NAME(), CURRENT_USER(), CURRENT_ROLE()"
 Check the account name: it must be the Joreca account.
 
 ## 2. Create the environment, upload the files, load DEALERS
-`create_workshop_db.sql` creates `WORKSHOP_DB`, the `WORKSHOP_WH` warehouse, the `WORKSHOP_STAGE` stage and the 3 tables.
+`create_workshop_db.sql` uses `WORKSHOP_DB` / `WORKSHOP_WH` (created by the admin) and creates the `WORKSHOP_STAGE` stage and the 3 tables.
 
 ```bash
-# 1. create database / warehouse / stage (first statements of the file)
+# 1. create the stage (first statements of the file)
 snow sql -f 00-setup/create_workshop_db.sql
 # 2. upload the data and the Gemini prompt to the stage
 snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE

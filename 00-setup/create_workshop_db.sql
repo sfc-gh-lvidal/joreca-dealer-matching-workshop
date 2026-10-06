@@ -3,18 +3,13 @@
 -- Same code as the matching cells of workshop_notebook.ipynb
 -- ----------------------------------------------------------------------
 
--- Everything lives in a dedicated database: drop it after the workshop to clean up.
--- SYSADMIN owns the objects; ACCOUNTADMIN is only needed for the integrations (blocks 2 and 3).
-USE ROLE SYSADMIN;
-CREATE DATABASE IF NOT EXISTS WORKSHOP_DB;
+-- WORKSHOP_DB and WORKSHOP_WH were created by the admin (00-setup/admin_prereqs.sql)
+-- and are owned / usable by WORKSHOP_DEV: everything below runs with this single role.
+-- Drop WORKSHOP_DB after the workshop to clean up.
+USE ROLE WORKSHOP_DEV;
 USE DATABASE WORKSHOP_DB;
 USE SCHEMA PUBLIC;
-
--- XSMALL is enough: the heavy work is done by the external APIs, not by the warehouse.
--- AUTO_SUSPEND = 60 s so the warehouse stops costing credits when idle.
-CREATE WAREHOUSE IF NOT EXISTS WORKSHOP_WH
-    WAREHOUSE_SIZE = 'XSMALL' AUTO_SUSPEND = 60 AUTO_RESUME = TRUE;
-USE WAREHOUSE WORKSHOP_WH;
+USE WAREHOUSE WORKSHOP_WH;   -- XSMALL, auto-suspend 60 s: the heavy work is done by the external APIs
 
 -- Internal stage = Snowflake-managed file storage. It replaces the local folders of the Linux server.
 -- Upload the files from your terminal with Snow CLI (run from the repo root):

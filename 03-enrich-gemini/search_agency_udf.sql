@@ -2,7 +2,7 @@
 -- Block 3 - Enrich: UDF SEARCH_AGENCY (Joreca prompt + Google Search grounding) -> DEALER_ADDRESS_STANDARD
 -- Same code as the matching cells of workshop_notebook.ipynb
 -- ----------------------------------------------------------------------
-USE ROLE SYSADMIN; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
+USE ROLE WORKSHOP_DEV; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
 
 -- Replaces the Gemini batch flow (export JSON file -> upload -> wait -> download -> re-import).
 -- Here each row calls Gemini directly and the answer lands in a table.
