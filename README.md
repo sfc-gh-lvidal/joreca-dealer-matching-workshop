@@ -153,7 +153,7 @@ workshop/
 
 ## Two ways to run the workshop
 
-**Snowflake Notebook** — import `workshop_notebook.ipynb` in a Snowflake Workspace and run the cells in order.
+**Snowflake Notebook** — create a Git workspace from this repo (admin runs `00-setup/setup_git_integration.sql` once, see `00-setup/README.md`), open `workshop_notebook.ipynb` and run the cells in order.
 
 **Snow CLI** — run the SQL files from your terminal, in order:
 

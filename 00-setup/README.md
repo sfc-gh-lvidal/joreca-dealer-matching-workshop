@@ -3,6 +3,21 @@
 ## Goal
 Get everyone connected, create the workshop environment, load the real sample, and present the pipeline.
 
+## 0. (Admin, once) Allow Git workspaces in Snowsight
+To open this repo directly in Snowsight, an admin runs `setup_git_integration.sql` once (needs `ACCOUNTADMIN` or `CREATE API INTEGRATION`):
+
+```bash
+snow sql -f 00-setup/setup_git_integration.sql
+```
+
+Then each developer, with a role that has USAGE on the integration (user menu > *Switch role*):
+1. **Projects > Workspaces > From Git repository**
+2. Repository URL: `https://github.com/sfc-gh-lvidal/joreca-dealer-matching-workshop`
+3. API integration: `GITHUB_WORKSHOP_API`
+4. Authentication: **Public repository** > *Create*
+
+Each workspace belongs to its user, so files don't collide. It is read-only towards GitHub (pull only, no push).
+
 ## 1. Test the Snow CLI connection
 ```bash
 snow connection test
