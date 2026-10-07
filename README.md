@@ -151,7 +151,7 @@ workshop/
 
 ---
 
-## Two ways to run the workshop
+## Three ways to run the workshop
 
 **Snowflake Notebook** — create a Git workspace from this repo (admin runs `00-setup/admin_prereqs.sql` once, then select the role `WORKSHOP_DEV`, see `00-setup/README.md`), open `workshop_notebook.ipynb` and run the cells in order.
 
@@ -170,7 +170,47 @@ snow sql -f 03-enrich-gemini/search_agency_udf.sql
 snow sql -f 04-resolve/resolve_and_compare.sql
 ```
 
-Both paths run the exact same code. The number of dealers sent to the APIs is `SAMPLE_SIZE` in the notebook, `LIMIT 10` in the SQL files.
+**VS Code** — clone the repo and run the SQL files with the Snowflake extension (details below).
+
+All paths run the exact same code. The number of dealers sent to the APIs is `SAMPLE_SIZE` in the notebook, `LIMIT 10` in the SQL files.
+
+
+### Run in VS Code
+
+The extension is only a client: every statement and every UDF runs **in Snowflake**, nothing runs on your laptop.
+
+**1. Clone and open the repo**
+```bash
+git clone https://github.com/sfc-gh-lvidal/joreca-dealer-matching-workshop.git
+code joreca-dealer-matching-workshop
+```
+
+**2. Install the extension** — Extensions › search `Snowflake` › install the one with the Snowflake verified badge.
+
+**3. Sign in**
+- Click the **Snowflake icon** (snowflake) in the Activity Bar.
+- The extension reads the same connections file as Snow CLI (`~/.snowflake/config.toml` or `connections.toml`): your `joreca` connection appears in the **Account** pane › select it › **Sign in**.
+- No connection listed? Enter the account identifier (`<orgname>-<accountname>`), pick the auth method (password / SSO / key pair), sign in. Or point *Settings › Snowflake: Connections Config File* to `~/.snowflake/config.toml` and restart VS Code.
+- SSO opens a browser page: authenticate, then come back to VS Code.
+
+**4. Check the connection** (the equivalent of `snow connection test`)
+- The sidebar shows your account, role, **Object Explorer** (with `WORKSHOP_DB`) and **Query History**.
+- In the Account pane, select role **`WORKSHOP_DEV`** and warehouse **`WORKSHOP_WH`**.
+- Run in any `.sql` file: `SELECT CURRENT_ACCOUNT_NAME(), CURRENT_USER(), CURRENT_ROLE();` — expected: the Joreca account, your user, `WORKSHOP_DEV`.
+
+**5. Upload the files to the stage** (block 0), either:
+- in the VS Code terminal: the two `snow stage copy` commands above, or
+- in the Object Explorer: `WORKSHOP_DB › PUBLIC › Stages › WORKSHOP_STAGE` › **Upload**.
+
+**6. Run the scripts in order** (`00-setup` → `04-resolve`)
+- One statement: cursor on it › **Cmd+Enter** (Ctrl+Enter on Windows) or *Execute* above the statement.
+- Whole file: **Snowflake: Execute All Statements**.
+- Results appear in the Snowflake pane; past queries in Query History (also visible in Snowsight › Monitoring › Query History).
+
+**Watch out**
+- `workshop_notebook.ipynb` does not run in VS Code: its `%%sql` cells are Snowflake Workspace notebook cells. Use the `.sql` files.
+- `setup_eai_*.sql`: paste your key before running, or skip the `ALTER SECRET` if the key is already set. Don't *Execute All* blindly.
+- Several connections? The one selected in the Account pane is used.
 
 ## Troubleshooting
 
