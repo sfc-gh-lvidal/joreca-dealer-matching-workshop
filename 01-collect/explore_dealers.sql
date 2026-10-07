@@ -19,5 +19,5 @@ FROM DEALERS;
 -- Typical issues: country prefix in the address (FR-74100), underscores in city names, missing zip.
 SELECT AGENCY_NAME, ADDRESS, CITY, ZIP_CODE
 FROM DEALERS
-WHERE ADDRESS ILIKE 'FR-%' OR CITY LIKE '%\\_%' OR ZIP_CODE IS NULL
+WHERE ADDRESS ILIKE 'FR-%' OR CITY LIKE '%\\_%' OR ZIP_CODE IS NULL OR ADDRESS IS NULL
 LIMIT 20;
