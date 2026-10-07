@@ -224,5 +224,6 @@ code joreca-dealer-matching-workshop
 | `SUBMIT_GEMINI_BATCH` returns `NOTHING_TO_DO` | Every dealer already has a result or is in a pending job |
 | `Database 'WORKSHOP_DB' does not exist` | Wrong connection / account: check `snow connection list` |
 | `COPY INTO` loads 0 rows | The CSV was not uploaded: run the `snow stage copy` command, then `LIST @WORKSHOP_STAGE` |
+| `COPY INTO` returns `Copy executed with 0 files processed` (NULL columns) | The CSV is not on the stage: `snow stage copy data/dealers_sample.csv @WORKSHOP_DB.PUBLIC.WORKSHOP_STAGE` (or Snowsight › stage › + Files), check with `LIST @WORKSHOP_STAGE;` |
 | `IMPORTS` error on `SUBMIT_GEMINI_BATCH` / `SEARCH_AGENCY` | The prompt file is not on the stage at `@WORKSHOP_STAGE/prompts/` |
 | A key appears in results | It should not: keys are read from SECRETs and sent in headers / never returned in errors |

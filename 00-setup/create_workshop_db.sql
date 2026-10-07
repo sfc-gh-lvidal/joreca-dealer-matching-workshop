@@ -39,7 +39,8 @@ CREATE OR REPLACE TABLE DEALERS (
 -- The CSV columns are SITE, AGENCY_ID, ... so we list the target columns in that order.
 -- EMPTY_FIELD_AS_NULL turns empty strings (e.g. missing SIRET) into real NULLs.
 COPY INTO DEALERS (SITE, AGENCY_ID, AGENCY_NAME, ADDRESS, CITY, ZIP_CODE, SIRET, MINISITE_URL)
-FROM @WORKSHOP_STAGE/dealers_sample.csv
+FROM @WORKSHOP_STAGE
+PATTERN = '.*dealers_sample[.]csv([.]gz)?'   -- finds the file anywhere in the stage, compressed or not
 FILE_FORMAT = (TYPE='CSV' FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1 EMPTY_FIELD_AS_NULL=TRUE);
 
 -- Empty tables for steps 2 and 3, same names as the target architecture.
