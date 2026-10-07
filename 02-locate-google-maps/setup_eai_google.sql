@@ -11,6 +11,8 @@
 -- WORKSHOP_DEV owns the secret, so you only paste the real key here.
 -- On the Google Cloud project, the Places API (findplacefromtext + details endpoints) must be enabled.
 USE ROLE WORKSHOP_DEV;
+-- SKIP this statement if the secret already holds the real key (e.g. set up before the workshop):
+-- running it unedited would replace the key with the placeholder text.
 ALTER SECRET WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_API_KEY
     SET SECRET_STRING = 'PASTE_GOOGLE_MAPS_KEY_HERE';
 

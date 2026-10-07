@@ -19,9 +19,8 @@ GRANT ROLE WORKSHOP_DEV TO ROLE SYSADMIN;
 
 -- Give the role to every developer (and to yourself). Replace the user names.
 GRANT ROLE WORKSHOP_DEV TO USER TA_HAPHAM;
--- GRANT ROLE WORKSHOP_DEV TO USER <DEV_2>;
--- GRANT ROLE WORKSHOP_DEV TO USER <DEV_3>;
--- GRANT ROLE WORKSHOP_DEV TO USER <DEV_4>;
+GRANT ROLE WORKSHOP_DEV TO USER R_CLAROS;
+GRANT ROLE WORKSHOP_DEV TO USER P_THAMMINENI;
 
 -- 2. Compute + database --------------------------------------------------
 -- XSMALL is enough: the heavy work is done by the external APIs.
@@ -30,6 +29,10 @@ CREATE WAREHOUSE IF NOT EXISTS WORKSHOP_WH
 GRANT USAGE, OPERATE ON WAREHOUSE WORKSHOP_WH TO ROLE WORKSHOP_DEV;
 
 -- WORKSHOP_DEV owns the database and its schema: devs create stage, tables, UDFs, views freely.
+-- Safe if WORKSHOP_DB already exists: nothing is dropped, only ownership moves to WORKSHOP_DEV
+-- (COPY CURRENT GRANTS keeps the existing grants). Objects already inside keep their own owner.
+-- Note: block 0 (create_workshop_db.sql) re-creates the tables DEALERS, DEALER_GOOGLE_MAP,
+-- DEALER_ADDRESS_STANDARD: do not keep anything you need under these names in WORKSHOP_DB.PUBLIC.
 CREATE DATABASE IF NOT EXISTS WORKSHOP_DB;
 GRANT OWNERSHIP ON DATABASE WORKSHOP_DB TO ROLE WORKSHOP_DEV COPY CURRENT GRANTS;
 GRANT OWNERSHIP ON SCHEMA WORKSHOP_DB.PUBLIC TO ROLE WORKSHOP_DEV COPY CURRENT GRANTS;
@@ -37,15 +40,17 @@ GRANT OWNERSHIP ON SCHEMA WORKSHOP_DB.PUBLIC TO ROLE WORKSHOP_DEV COPY CURRENT G
 -- 3. Network rules + secrets ---------------------------------------------
 -- They must exist before the integrations that reference them.
 -- Snowflake blocks all outbound calls by default; a network rule lists the allowed hosts.
-CREATE OR REPLACE NETWORK RULE WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_RULE
+-- IF NOT EXISTS everywhere: re-running this script never overwrites an existing rule or key.
+CREATE NETWORK RULE IF NOT EXISTS WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_RULE
     MODE = EGRESS TYPE = HOST_PORT VALUE_LIST = ('maps.googleapis.com');
-CREATE OR REPLACE NETWORK RULE WORKSHOP_DB.PUBLIC.GEMINI_RULE
+CREATE NETWORK RULE IF NOT EXISTS WORKSHOP_DB.PUBLIC.GEMINI_RULE
     MODE = EGRESS TYPE = HOST_PORT VALUE_LIST = ('generativelanguage.googleapis.com');
 
 -- Placeholder values: the developers paste the real keys during the workshop (ALTER SECRET).
-CREATE OR REPLACE SECRET WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_API_KEY
+-- If a secret with this name already holds a real key, it is kept as is.
+CREATE SECRET IF NOT EXISTS WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_API_KEY
     TYPE = GENERIC_STRING SECRET_STRING = 'REPLACE_ME';
-CREATE OR REPLACE SECRET WORKSHOP_DB.PUBLIC.GEMINI_API_KEY
+CREATE SECRET IF NOT EXISTS WORKSHOP_DB.PUBLIC.GEMINI_API_KEY
     TYPE = GENERIC_STRING SECRET_STRING = 'REPLACE_ME';
 
 -- 4. Integrations (the only objects that really need ACCOUNTADMIN) -------
@@ -72,10 +77,15 @@ GRANT USAGE ON INTEGRATION GITHUB_WORKSHOP_API TO ROLE WORKSHOP_DEV;
 
 -- 5. Hand the secrets and network rules over to WORKSHOP_DEV ------------
 -- Ownership lets developers paste the real keys (ALTER SECRET) and the UDFs read them.
-GRANT OWNERSHIP ON SECRET WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_API_KEY TO ROLE WORKSHOP_DEV;
-GRANT OWNERSHIP ON SECRET WORKSHOP_DB.PUBLIC.GEMINI_API_KEY      TO ROLE WORKSHOP_DEV;
-GRANT OWNERSHIP ON NETWORK RULE WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_RULE TO ROLE WORKSHOP_DEV;
-GRANT OWNERSHIP ON NETWORK RULE WORKSHOP_DB.PUBLIC.GEMINI_RULE      TO ROLE WORKSHOP_DEV;
+GRANT OWNERSHIP ON SECRET WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_API_KEY TO ROLE WORKSHOP_DEV COPY CURRENT GRANTS;
+GRANT OWNERSHIP ON SECRET WORKSHOP_DB.PUBLIC.GEMINI_API_KEY      TO ROLE WORKSHOP_DEV COPY CURRENT GRANTS;
+GRANT OWNERSHIP ON NETWORK RULE WORKSHOP_DB.PUBLIC.GOOGLE_MAPS_RULE TO ROLE WORKSHOP_DEV COPY CURRENT GRANTS;
+GRANT OWNERSHIP ON NETWORK RULE WORKSHOP_DB.PUBLIC.GEMINI_RULE      TO ROLE WORKSHOP_DEV COPY CURRENT GRANTS;
+
+-- Existing UDFs / integrations created before this script (e.g. GEMINI_COMPLETE, GEMINI_ACCESS)
+-- keep working when they are owned by SYSADMIN or ACCOUNTADMIN: WORKSHOP_DEV sits under SYSADMIN,
+-- so both inherit the secret. If they are owned by another role, give it read access:
+-- GRANT READ ON SECRET WORKSHOP_DB.PUBLIC.GEMINI_API_KEY TO ROLE <their_owner_role>;
 
 -- Optional block 06 (Cortex AI): CORTEX_USER is granted to PUBLIC by default.
 -- If your admin revoked it, uncomment:
