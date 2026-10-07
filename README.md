@@ -138,6 +138,7 @@ workshop/
 ├── 02-locate-google-maps/             # Google Maps EAI + UDF → DEALER_GOOGLE_MAP
 ├── 03-enrich-gemini/                  # Gemini Batch API (2 procedures) → DEALER_ADDRESS_STANDARD
 ├── 04-resolve/                        # Final resolution + comparison
+├── 05-automate/                       # Stored procedures + task graph: steps 2-4 end to end
 ├── optional-05-matching/              # Matching multi-niveaux → CONCESSION
 ├── optional-06-cortex-ai/             # Cortex AI vs Gemini comparison
 ├── optional-07-data-quality/          # DMFs on enriched data
@@ -168,6 +169,7 @@ snow sql -f 02-locate-google-maps/google_maps_udf.sql
 snow sql -f 03-enrich-gemini/setup_eai_gemini.sql           # paste your key first (ALTER SECRET)
 snow sql -f 03-enrich-gemini/gemini_batch.sql             # then re-run: CALL COLLECT_GEMINI_BATCH(NULL);
 snow sql -f 04-resolve/resolve_and_compare.sql
+snow sql -f 05-automate/automate_pipeline.sql             # procedures + task graph, EXECUTE TASK
 ```
 
 **VS Code** — clone the repo and run the SQL files with the Snowflake extension (details below).

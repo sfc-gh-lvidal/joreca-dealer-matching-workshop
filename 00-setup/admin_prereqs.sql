@@ -91,8 +91,8 @@ GRANT OWNERSHIP ON NETWORK RULE WORKSHOP_DB.PUBLIC.GEMINI_RULE      TO ROLE WORK
 -- If your admin revoked it, uncomment:
 -- GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE WORKSHOP_DEV;
 
--- Optional block 09 (Scheduling with Tasks): running a task needs this account-level privilege.
--- GRANT EXECUTE TASK ON ACCOUNT TO ROLE WORKSHOP_DEV;
+-- Block 5 (Automate it): running tasks needs this account-level privilege.
+GRANT EXECUTE TASK ON ACCOUNT TO ROLE WORKSHOP_DEV;
 
 -- 6. Check ---------------------------------------------------------------
 SHOW GRANTS TO ROLE WORKSHOP_DEV;
