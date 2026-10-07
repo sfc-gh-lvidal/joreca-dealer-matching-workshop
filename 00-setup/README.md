@@ -55,7 +55,7 @@ snow stage copy prompts/gemini_search_agency.txt @WORKSHOP_DB.PUBLIC.WORKSHOP_ST
 snow sql -f 00-setup/create_workshop_db.sql
 ```
 
-Expected at the end: `DEALERS = 200`, `DEALER_GOOGLE_MAP = 0`, `DEALER_ADDRESS_STANDARD = 0`.
+Expected at the end: `DEALERS = 1000`, `DEALER_GOOGLE_MAP = 0`, `DEALER_ADDRESS_STANDARD = 0`.
 
 ## Briefing (whiteboard)
 - The 9 pipeline steps, focus on 1-4 today

@@ -35,7 +35,7 @@ Joreca's dealer matching pipeline has 9 steps. In this workshop, we focus on **s
 The tables we create during the workshop use the **same names as the target production architecture**:
 
 ```
-DEALERS (input crawl, ~200 rows)
+DEALERS (input crawl, 1000 rows)
     │
     ├───► Step 2: Google Maps API (Find Place + Place Details)
     │         └──► DEALER_GOOGLE_MAP (cache: GOOGLE_PLACE_ID → normalized name, address, JSON)
@@ -130,7 +130,7 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 workshop/
 ├── README.md                          ← You are here
 ├── data/
-│   └── dealers_sample.csv             # 200 real crawled dealers (from the POC comparison file)
+│   └── dealers_sample.csv             # 1000 real crawled dealers (clean random sample of the POC comparison file, all sites)
 ├── prompts/
 │   └── gemini_search_agency.txt       # Joreca production Gemini prompt (loaded by the UDF from the stage)
 ├── 00-setup/                          # Create WORKSHOP_DB, load data
