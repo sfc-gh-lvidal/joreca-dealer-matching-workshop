@@ -21,7 +21,7 @@ Joreca's dealer matching pipeline has 9 steps. In this workshop, we focus on **s
 | 0 | Reset | Archive old concessions | - |
 | 1 | **Collect** | Build DEALERS table from marketplace crawl | **YES** |
 | 2 | **Locate** | Google Maps: find Place ID, fetch details | **YES** |
-| 3 | **Enrich** | Gemini AI: address standardization + agency search | **YES** |
+| 3 | **Enrich** | Gemini Batch API: address standardization + agency search | **YES** |
 | 4 | **Resolve** | Choose final Google Place ID; second Gemini pass | **YES** |
 | 5 | Consolidate | Write to DEALERS + CONCESSION, deduplicate | optional |
 | 6 | Match | Link each dealer to a CONCESSION (JORECA_ID) | optional |
@@ -96,7 +96,7 @@ Address standardization and Place ID resolution. Per-period table, one row per (
 | 15:00 | **Setup + Briefing** | 20 min | Snow CLI connection. Create `WORKSHOP_DB`. Present the pipeline. Load `DEALERS` from stage. |
 | 15:20 | **Step 1: Collect** | 15 min | Explore `DEALERS`: data quality, missing SIRETs, inconsistent names. Write exploration queries. |
 | 15:35 | **Step 2: Locate (Google Maps)** | 35 min | Configure EAI for Google Maps. Write UDF `FIND_GOOGLE_PLACE()`. Populate `DEALERS.GOOGLE_PLACE_ID` and `DEALER_GOOGLE_MAP`. |
-| 16:10 | **Step 3: Enrich (Gemini)** | 35 min | Configure EAI for Gemini. Write UDF `SEARCH_AGENCY()` using your production prompt. Populate `DEALER_ADDRESS_STANDARD`. Measure tokens per call. |
+| 16:10 | **Step 3: Enrich (Gemini)** | 35 min | Gemini Batch API from Snowflake: `SUBMIT_GEMINI_BATCH` (JSONL + batch job, production prompt), coffee break, `COLLECT_GEMINI_BATCH` into `DEALER_ADDRESS_STANDARD`. Measure tokens per dealer. |
 | 16:45 | **Step 4: Resolve + Wrap-up** | 15–25 min | Resolve final GOOGLE_PLACE_ID. Compare with prod results. Discuss next steps. |
 
 **If time permits:** run Cortex AI on the same data to compare with Gemini.
@@ -136,7 +136,7 @@ workshop/
 ├── 00-setup/                          # Create WORKSHOP_DB, load data
 ├── 01-collect/                        # Explore DEALERS
 ├── 02-locate-google-maps/             # Google Maps EAI + UDF → DEALER_GOOGLE_MAP
-├── 03-enrich-gemini/                  # Gemini EAI + UDF → DEALER_ADDRESS_STANDARD
+├── 03-enrich-gemini/                  # Gemini Batch API (2 procedures) → DEALER_ADDRESS_STANDARD
 ├── 04-resolve/                        # Final resolution + comparison
 ├── optional-05-matching/              # Matching multi-niveaux → CONCESSION
 ├── optional-06-cortex-ai/             # Cortex AI vs Gemini comparison
@@ -166,7 +166,7 @@ snow sql -f 01-collect/explore_dealers.sql
 snow sql -f 02-locate-google-maps/setup_eai_google.sql      # paste your key first (ALTER SECRET)
 snow sql -f 02-locate-google-maps/google_maps_udf.sql
 snow sql -f 03-enrich-gemini/setup_eai_gemini.sql           # paste your key first (ALTER SECRET)
-snow sql -f 03-enrich-gemini/search_agency_udf.sql
+snow sql -f 03-enrich-gemini/gemini_batch.sql             # then re-run: CALL COLLECT_GEMINI_BATCH(NULL);
 snow sql -f 04-resolve/resolve_and_compare.sql
 ```
 
@@ -217,8 +217,10 @@ code joreca-dealer-matching-workshop
 | Symptom | Cause / fix |
 |---------|-------------|
 | `FIND_GOOGLE_PLACE` returns `status: ERROR`, `REQUEST_DENIED` | Wrong key, or Places API not enabled on the Google Cloud project |
-| `SEARCH_AGENCY` returns `HTTP 400: API key not valid` | Wrong Gemini key in the secret: re-run `setup_eai_gemini.sql` |
+| `SUBMIT_GEMINI_BATCH` / `SEARCH_AGENCY` returns `HTTP 400: API key not valid` | Wrong Gemini key in the secret: re-run `setup_eai_gemini.sql` |
+| Batch stays `PENDING` / `RUNNING` | Normal: asynchronous. Re-run `CALL COLLECT_GEMINI_BATCH(NULL);` a few minutes later |
+| `SUBMIT_GEMINI_BATCH` returns `NOTHING_TO_DO` | Every dealer already has a result or is in a pending job |
 | `Database 'WORKSHOP_DB' does not exist` | Wrong connection / account: check `snow connection list` |
 | `COPY INTO` loads 0 rows | The CSV was not uploaded: run the `snow stage copy` command, then `LIST @WORKSHOP_STAGE` |
-| `IMPORTS` error on `SEARCH_AGENCY` | The prompt file is not on the stage at `@WORKSHOP_STAGE/prompts/` |
+| `IMPORTS` error on `SUBMIT_GEMINI_BATCH` / `SEARCH_AGENCY` | The prompt file is not on the stage at `@WORKSHOP_STAGE/prompts/` |
 | A key appears in results | It should not: keys are read from SECRETs and sent in headers / never returned in errors |

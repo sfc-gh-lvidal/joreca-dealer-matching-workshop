@@ -1,5 +1,6 @@
 -- ----------------------------------------------------------------------
--- Block 3 - Enrich: UDF SEARCH_AGENCY (Joreca prompt + Google Search grounding) -> DEALER_ADDRESS_STANDARD
+-- Block 3 (optional) - Interactive UDF SEARCH_AGENCY: same prompt, one dealer at a time (debug / prompt iteration)
+-- The main flow of block 3 is gemini_batch.sql (Batch API, as in production)
 -- Same code as the matching cells of workshop_notebook.ipynb
 -- ----------------------------------------------------------------------
 USE ROLE WORKSHOP_DEV; USE DATABASE WORKSHOP_DB; USE SCHEMA PUBLIC; USE WAREHOUSE WORKSHOP_WH;
